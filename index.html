@@ -1,5 +1,4 @@
 <!doctype html>
-
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -12,6 +11,8 @@
       --line: rgba(255,255,255,0.12);
       --text: #eef3ff;
       --muted: rgba(238,243,255,0.72);
+      --accent: #8ad1ff;
+      --accent2: #7dffb2;
     }
     html, body {
       margin: 0;
@@ -168,11 +169,7 @@
       font-size: 15px;
       letter-spacing: 0.2px;
     }
-    .loading small {
-      color: var(--muted);
-      display: block;
-      margin-top: 6px;
-    }
+    .loading small { color: var(--muted); display: block; margin-top: 6px; }
     @media (max-width: 720px) {
       .ui, .hint {
         left: 10px;
@@ -193,7 +190,7 @@
 
   <div class="loading" id="loading">
     Loading Atlas-magnetic…
-    <small>Preparing globe and atlas textures</small>
+    <small>Preparing globe, atlas textures and field data</small>
   </div>
 
   <div class="ui">
@@ -202,58 +199,55 @@
       <div class="sub" id="yearLabel">—</div>
     </div>
 
-```
-<div class="buttons">
-  <button id="playBtn">Play</button>
-  <button id="resetBtn">Reset view</button>
-  <button id="rotBtn">Auto-rotate: on</button>
-</div>
-
-<div class="row">
-  <div class="buttons" id="layerButtons">
-    <button class="chip active" data-layer="intensity">Intensity</button>
-    <button class="chip" data-layer="declination">Declination</button>
-  </div>
-
-  <div class="slider-wrap">
-    <div class="slider-top">
-      <span>Year</span>
-      <span id="yearValue">1900</span>
+    <div class="buttons">
+      <button id="playBtn">Play</button>
+      <button id="resetBtn">Reset view</button>
+      <button id="rotBtn">Auto-rotate: on</button>
     </div>
-    <input id="yearSlider" type="range" min="0" max="0" step="1" value="0" />
-  </div>
 
-  <div class="stats">
-    <div class="card">
-      <div class="k">Clicked point</div>
-      <div class="v" id="pointValue">Click the globe</div>
-    </div>
-    <div class="card">
-      <div class="k">Coordinates</div>
-      <div class="v" id="coordValue">—</div>
-    </div>
-    <div class="card">
-      <div class="k">Current layer</div>
-      <div class="v" id="layerValue">Intensity</div>
-    </div>
-    <div class="card">
-      <div class="k">Current year</div>
-      <div class="v" id="yearCardValue">1900</div>
-    </div>
-  </div>
+    <div class="row">
+      <div class="buttons" id="layerButtons">
+        <button class="chip active" data-layer="intensity">Intensity</button>
+        <button class="chip" data-layer="declination">Declination</button>
+      </div>
 
-  <div class="legend">
-    <span class="badge">Drag to rotate</span>
-    <span class="badge">Scroll to zoom</span>
-    <span class="badge">Click for coordinates</span>
-  </div>
-</div>
-```
+      <div class="slider-wrap">
+        <div class="slider-top">
+          <span>Year</span>
+          <span id="yearValue">1900</span>
+        </div>
+        <input id="yearSlider" type="range" min="0" max="0" step="1" value="0" />
+      </div>
 
+      <div class="stats">
+        <div class="card">
+          <div class="k">Clicked point</div>
+          <div class="v" id="pointValue">Click the globe</div>
+        </div>
+        <div class="card">
+          <div class="k">Coordinates</div>
+          <div class="v" id="coordValue">—</div>
+        </div>
+        <div class="card">
+          <div class="k">Intensity F</div>
+          <div class="v" id="intensityValue">—</div>
+        </div>
+        <div class="card">
+          <div class="k">Declination D</div>
+          <div class="v" id="declinationValue">—</div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span class="badge">Drag to rotate</span>
+        <span class="badge">Scroll to zoom</span>
+        <span class="badge">Click a point for values</span>
+      </div>
+    </div>
   </div>
 
   <div class="hint">
-    The atlas uses texture atlases only. This simpler version does not need field_data.json.
+    The atlas uses a texture atlas for the selected year. Click any point on the globe to read approximate field values from the precomputed grid.
   </div>
 
   <script type="module">
@@ -270,8 +264,8 @@
     const rotBtn = document.getElementById('rotBtn');
     const pointValue = document.getElementById('pointValue');
     const coordValue = document.getElementById('coordValue');
-    const layerValue = document.getElementById('layerValue');
-    const yearCardValue = document.getElementById('yearCardValue');
+    const intensityValue = document.getElementById('intensityValue');
+    const declinationValue = document.getElementById('declinationValue');
     const layerButtons = document.getElementById('layerButtons');
 
     const state = {
@@ -280,8 +274,11 @@
       autoRotate: true,
       years: [],
       currentYearIndex: 0,
+      grid: null,
       textures: {},
       metadata: null,
+      fieldData: null,
+      timer: null,
       ready: false,
       lastStepAt: 0,
       lastClicked: null,
@@ -377,12 +374,8 @@
       texture.needsUpdate = true;
       sphereMaterial.map = texture;
       sphereMaterial.needsUpdate = true;
-
-      const yearText = formatYear(idx);
-      yearLabel.textContent = `${yearText} · ${state.layer}`;
-      yearValue.textContent = yearText;
-      yearCardValue.textContent = yearText;
-      layerValue.textContent = state.layer.charAt(0).toUpperCase() + state.layer.slice(1);
+      yearLabel.textContent = `${formatYear(idx)} · ${state.layer}`;
+      yearValue.textContent = formatYear(idx);
       yearSlider.value = String(idx);
     }
 
@@ -410,15 +403,60 @@
       }
     }
 
+    function bilinearSample(layerName, yearIndex, lon, lat) {
+      const fd = state.fieldData;
+      const layer = fd.layers[layerName];
+      const lonArr = fd.grid.lon;
+      const latArr = fd.grid.lat;
+      const values = layer.values[yearIndex];
+      const nx = lonArr.length;
+      const ny = latArr.length;
+      const dLon = lonArr[1] - lonArr[0];
+      const dLat = latArr[1] - latArr[0];
+
+      let x = lon;
+      while (x < lonArr[0]) x += 360;
+      while (x > lonArr[nx - 1]) x -= 360;
+
+      const fx = (x - lonArr[0]) / dLon;
+      const fy = (lat - latArr[0]) / dLat;
+      const x0 = Math.max(0, Math.min(nx - 2, Math.floor(fx)));
+      const y0 = Math.max(0, Math.min(ny - 2, Math.floor(fy)));
+      const tx = fx - x0;
+      const ty = fy - y0;
+
+      const idx = (iy, ix) => iy * nx + ix;
+      const v00 = values[idx(y0, x0)];
+      const v10 = values[idx(y0, x0 + 1)];
+      const v01 = values[idx(y0 + 1, x0)];
+      const v11 = values[idx(y0 + 1, x0 + 1)];
+
+      return (
+        v00 * (1 - tx) * (1 - ty) +
+        v10 * tx * (1 - ty) +
+        v01 * (1 - tx) * ty +
+        v11 * tx * ty
+      );
+    }
+
     function updateClickedReadout(lat, lon) {
-      if (lat === null || lon === null) {
+      if (lat === null || lon === null || !state.fieldData) {
         pointValue.textContent = 'Click the globe';
         coordValue.textContent = '—';
+        intensityValue.textContent = '—';
+        declinationValue.textContent = '—';
         return;
       }
 
-      pointValue.textContent = `Location at ${formatYear(state.currentYearIndex)}`;
+      const yearIdx = state.currentYearIndex;
+      const year = state.years[yearIdx];
+      const intensity = bilinearSample('intensity', yearIdx, lon, lat);
+      const declination = bilinearSample('declination', yearIdx, lon, lat);
+
+      pointValue.textContent = `${state.layer} at ${year}`;
       coordValue.textContent = `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
+      intensityValue.textContent = `${intensity.toFixed(1)} nT`;
+      declinationValue.textContent = `${declination.toFixed(1)}°`;
     }
 
     function latLonFromIntersection(point) {
@@ -443,9 +481,15 @@
     }
 
     async function loadData() {
-      const metadata = await fetchJSON('metadata.json');
+      const [metadata, fieldData] = await Promise.all([
+        fetchJSON('metadata.json'),
+        fetchJSON('field_data.json'),
+      ]);
+
       state.metadata = metadata;
-      state.years = metadata.years ?? [];
+      state.fieldData = fieldData;
+      state.grid = fieldData.grid;
+      state.years = metadata.years ?? fieldData.years ?? [];
       yearSlider.max = String(Math.max(0, state.years.length - 1));
       yearSlider.value = '0';
 
@@ -524,6 +568,5 @@
 
     tick();
   </script>
-
 </body>
 </html>
