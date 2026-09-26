@@ -1,369 +1,572 @@
 <!doctype html>
-<html lang="pl">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Magnetic Globe 3D</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atlas-magnetic</title>
   <style>
+    :root {
+      --bg: rgba(10, 14, 22, 0.78);
+      --panel: rgba(18, 24, 36, 0.86);
+      --line: rgba(255,255,255,0.12);
+      --text: #eef3ff;
+      --muted: rgba(238,243,255,0.72);
+      --accent: #8ad1ff;
+      --accent2: #7dffb2;
+    }
     html, body {
       margin: 0;
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: radial-gradient(circle at 50% 40%, #14213d 0%, #070b14 55%, #02040a 100%);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      color: #eef5ff;
+      background: radial-gradient(circle at top, #1b2a41 0%, #09111d 55%, #05070b 100%);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--text);
     }
-    #app { position: fixed; inset: 0; }
-    canvas { display: block; width: 100%; height: 100%; }
-    .hud {
-      position: absolute;
+    #app {
+      position: fixed;
+      inset: 0;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .ui {
+      position: fixed;
       left: 16px;
       top: 16px;
-      z-index: 10;
       width: min(420px, calc(100vw - 32px));
-      padding: 14px 14px 12px;
+      z-index: 10;
+      background: var(--bg);
+      border: 1px solid var(--line);
       border-radius: 18px;
-      background: rgba(9, 14, 26, 0.78);
-      border: 1px solid rgba(255,255,255,0.08);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 60px rgba(0,0,0,0.35);
+      padding: 14px;
     }
-    .title { font-size: 20px; font-weight: 700; margin-bottom: 6px; line-height: 1.15; }
-    .subtitle { font-size: 13px; color: #b7c0d4; line-height: 1.45; margin-bottom: 12px; }
-    .controls { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 10px; }
-    .row { display: grid; gap: 8px; margin-bottom: 10px; }
-    button, select, input[type="range"] { font: inherit; }
-    button, select {
-      border: 1px solid rgba(255,255,255,0.1);
-      background: rgba(255,255,255,0.07);
-      color: #eef5ff;
-      border-radius: 12px;
+    .title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+    .title h1 {
+      font-size: 18px;
+      margin: 0;
+      letter-spacing: 0.2px;
+    }
+    .title .sub {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .row {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button, .chip {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 9px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: transform .12s ease, background .12s ease, border-color .12s ease;
+    }
+    button:hover, .chip:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.24);
+    }
+    button.active {
+      border-color: rgba(138,209,255,0.8);
+      box-shadow: 0 0 0 1px rgba(138,209,255,0.15) inset;
+    }
+    .slider-wrap {
+      display: grid;
+      gap: 6px;
+    }
+    .slider-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    input[type="range"] {
+      width: 100%;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
       padding: 10px 12px;
-      outline: none;
     }
-    button:hover, select:hover { background: rgba(255,255,255,0.11); }
-    input[type="range"] { width: 100%; accent-color: #7cc4ff; }
-    .sliderHead {
-      display: flex; justify-content: space-between; align-items: baseline;
-      font-size: 13px; color: #b7c0d4; margin-bottom: 4px;
+    .card .k {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
     }
-    .meta {
-      font-size: 13px; color: #b7c0d4; line-height: 1.45; display: grid; gap: 4px;
+    .card .v {
+      font-size: 14px;
+      line-height: 1.35;
+      word-break: break-word;
     }
-    .legend { margin-top: 10px; display: grid; gap: 6px; font-size: 12px; color: #b7c0d4; }
-    .bar {
-      height: 10px; border-radius: 999px;
-      background: linear-gradient(90deg, #40196d 0%, #7c4fd6 22%, #3d78d8 45%, #79d8c4 65%, #fff0a6 82%, #fff9e9 100%);
-      border: 1px solid rgba(255,255,255,0.14);
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .badge {
+      padding: 5px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.05);
     }
     .hint {
-      position: absolute;
+      position: fixed;
       right: 16px;
       bottom: 16px;
       z-index: 10;
-      max-width: min(430px, calc(100vw - 32px));
-      padding: 10px 12px;
+      max-width: min(380px, calc(100vw - 32px));
+      background: var(--bg);
+      border: 1px solid var(--line);
       border-radius: 16px;
-      background: rgba(7, 12, 22, 0.55);
-      border: 1px solid rgba(255,255,255,0.08);
-      backdrop-filter: blur(8px);
-      color: #b7c0d4;
-      font-size: 12px;
+      padding: 12px 14px;
+      color: var(--muted);
+      font-size: 13px;
       line-height: 1.45;
+      backdrop-filter: blur(14px);
     }
-    .statusDot {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #4fe38b;
-      box-shadow: 0 0 10px rgba(79,227,139,0.6);
-      margin-right: 6px;
-      vertical-align: middle;
+    .loading {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      z-index: 30;
+      background: rgba(5,7,11,0.92);
+      color: var(--text);
+      font-size: 15px;
+      letter-spacing: 0.2px;
     }
-    code { background: rgba(255,255,255,0.08); padding: 0 5px; border-radius: 6px; }
+    .loading small { color: var(--muted); display: block; margin-top: 6px; }
+    @media (max-width: 720px) {
+      .ui, .hint {
+        left: 10px;
+        right: 10px;
+        width: auto;
+      }
+      .hint {
+        bottom: 10px;
+      }
+      .stats {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
   <div id="app"></div>
 
-  <div class="hud">
-    <div class="title">Magnetic Globe 3D</div>
-    <div class="subtitle">Atlasowa wizualizacja pola magnetycznego Ziemi. Obracaj globus, zmieniaj rok i przełączaj warstwy bez przeładowywania obrazów.</div>
+  <div class="loading" id="loading">
+    Loading Atlas-magnetic…
+    <small>Preparing globe, atlas textures and field data</small>
+  </div>
 
-    <div class="controls">
-      <button id="playBtn">▶ Play</button>
-      <select id="layerSelect" title="Warstwa">
-        <option value="intensity">Intensywność pola</option>
-        <option value="declination">Deklinacja</option>
-      </select>
+  <div class="ui">
+    <div class="title">
+      <h1>Atlas-magnetic</h1>
+      <div class="sub" id="yearLabel">—</div>
+    </div>
+
+    <div class="buttons">
+      <button id="playBtn">Play</button>
+      <button id="resetBtn">Reset view</button>
+      <button id="rotBtn">Auto-rotate: on</button>
     </div>
 
     <div class="row">
-      <div>
-        <div class="sliderHead">
-          <span>Rok</span>
-          <span id="yearLabel">1900</span>
+      <div class="buttons" id="layerButtons">
+        <button class="chip active" data-layer="intensity">Intensity</button>
+        <button class="chip" data-layer="declination">Declination</button>
+      </div>
+
+      <div class="slider-wrap">
+        <div class="slider-top">
+          <span>Year</span>
+          <span id="yearValue">1900</span>
         </div>
-        <input id="yearSlider" type="range" min="1900" max="2025" step="5" value="1900" />
+        <input id="yearSlider" type="range" min="0" max="0" step="1" value="0" />
       </div>
 
-      <div>
-        <div class="sliderHead">
-          <span>Prędkość</span>
-          <span id="speedLabel">0.3 s / klatkę</span>
+      <div class="stats">
+        <div class="card">
+          <div class="k">Clicked point</div>
+          <div class="v" id="pointValue">Click the globe</div>
         </div>
-        <input id="speedSlider" type="range" min="150" max="1000" step="50" value="300" />
+        <div class="card">
+          <div class="k">Coordinates</div>
+          <div class="v" id="coordValue">—</div>
+        </div>
+        <div class="card">
+          <div class="k">Intensity F</div>
+          <div class="v" id="intensityValue">—</div>
+        </div>
+        <div class="card">
+          <div class="k">Declination D</div>
+          <div class="v" id="declinationValue">—</div>
+        </div>
       </div>
 
-      <div class="meta">
-        <div>Warstwa: <strong id="layerLabel">Intensywność pola</strong></div>
-        <div>Stan: <span class="statusDot"></span><span id="statusText">gotowe</span></div>
-        <div>Atlas: <code>atlas_intensity.webp</code> / <code>atlas_declination.webp</code></div>
+      <div class="legend">
+        <span class="badge">Drag to rotate</span>
+        <span class="badge">Scroll to zoom</span>
+        <span class="badge">Click a point for values</span>
       </div>
-    </div>
-
-    <div class="legend">
-      <div>Fiolet = słabsze pole, jasny krem = silniejsze pole.</div>
-      <div class="bar"></div>
     </div>
   </div>
 
   <div class="hint">
-    Przeciągnij myszą lub palcem, aby obracać globus. Użyj suwaka roku do skoku między klatkami. Przyciskiem Play uruchamiasz animację.
+    The atlas uses a texture atlas for the selected year. Click any point on the globe to read approximate field values from the precomputed grid.
   </div>
 
   <script type="module">
-    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+    import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
-    const app = document.getElementById("app");
-    const yearSlider = document.getElementById("yearSlider");
-    const speedSlider = document.getElementById("speedSlider");
-    const speedLabel = document.getElementById("speedLabel");
-    const yearLabel = document.getElementById("yearLabel");
-    const playBtn = document.getElementById("playBtn");
-    const layerSelect = document.getElementById("layerSelect");
-    const layerLabel = document.getElementById("layerLabel");
-    const statusText = document.getElementById("statusText");
+    const app = document.getElementById('app');
+    const loading = document.getElementById('loading');
+    const yearLabel = document.getElementById('yearLabel');
+    const yearValue = document.getElementById('yearValue');
+    const yearSlider = document.getElementById('yearSlider');
+    const playBtn = document.getElementById('playBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const rotBtn = document.getElementById('rotBtn');
+    const pointValue = document.getElementById('pointValue');
+    const coordValue = document.getElementById('coordValue');
+    const intensityValue = document.getElementById('intensityValue');
+    const declinationValue = document.getElementById('declinationValue');
+    const layerButtons = document.getElementById('layerButtons');
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
-    camera.position.z = 3.3;
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
-    renderer.setSize(innerWidth, innerHeight);
-    app.appendChild(renderer.domElement);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 1.7));
-    const dir = new THREE.DirectionalLight(0xffffff, 2.2);
-    dir.position.set(3, 2, 4);
-    scene.add(dir);
-
-    const globe = new THREE.Mesh(
-      new THREE.SphereGeometry(1.35, 128, 128),
-      new THREE.MeshPhongMaterial({ color: 0x17304f, shininess: 20, specular: 0x344c6a })
-    );
-    scene.add(globe);
-
-    const overlay = new THREE.Mesh(
-      new THREE.SphereGeometry(1.353, 128, 128),
-      new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false })
-    );
-    scene.add(overlay);
-
-    const stars = makeStars();
-    scene.add(stars);
-
-    function makeStars() {
-      const count = 1300;
-      const geometry = new THREE.BufferGeometry();
-      const positions = new Float32Array(count * 3);
-      for (let i = 0; i < count; i++) {
-        const radius = 40 + Math.random() * 60;
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos(2 * Math.random() - 1);
-        positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
-        positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-        positions[i * 3 + 2] = radius * Math.cos(phi);
-      }
-      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-      return new THREE.Points(geometry, new THREE.PointsMaterial({ color: 0xffffff, size: 0.06, sizeAttenuation: true }));
-    }
-
-    const metadata = await (await fetch("metadata.json")).json();
-    const years = metadata.years;
-    const columns = metadata.columns;
-    const rows = metadata.rows;
-
-    const textures = {
-      intensity: await loadAtlas("atlas_intensity.webp"),
-      declination: await loadAtlas("atlas_declination.webp")
+    const state = {
+      layer: 'intensity',
+      playing: false,
+      autoRotate: true,
+      years: [],
+      currentYearIndex: 0,
+      grid: null,
+      textures: {},
+      metadata: null,
+      fieldData: null,
+      timer: null,
+      ready: false,
+      lastStepAt: 0,
+      lastClicked: null,
     };
 
-    let activeLayer = "intensity";
-    let activeTexture = textures[activeLayer];
-    overlay.material.map = activeTexture;
-    overlay.material.needsUpdate = true;
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x09111d, 3.5, 8.5);
 
-    let currentYear = years[0];
-    let playing = false;
-    let intervalId = null;
-    let intervalMs = Number(speedSlider.value);
-    let dragging = false;
-    let lastX = 0;
-    let lastY = 0;
-    let rotX = 0;
-    let rotY = 0;
-    let targetRotX = 0;
-    let targetRotY = 0;
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 3.25);
 
-    function updateSpeedLabel() {
-      speedLabel.textContent = `${(intervalMs / 1000).toFixed(1)} s / klatkę`;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    app.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.enablePan = false;
+    controls.minDistance = 1.8;
+    controls.maxDistance = 7;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.45;
+
+    const ambient = new THREE.AmbientLight(0xffffff, 1.8);
+    scene.add(ambient);
+
+    const sun = new THREE.DirectionalLight(0xffffff, 2.0);
+    sun.position.set(3, 2, 4);
+    scene.add(sun);
+
+    const backGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(1.04, 64, 64),
+      new THREE.MeshBasicMaterial({ color: 0x8ad1ff, transparent: true, opacity: 0.08 })
+    );
+    scene.add(backGlow);
+
+    const sphereGeometry = new THREE.SphereGeometry(1, 128, 128);
+    const sphereMaterial = new THREE.MeshPhongMaterial({
+      color: 0xffffff,
+      shininess: 18,
+      specular: 0x222222,
+      emissive: 0x050505,
+      emissiveIntensity: 0.35,
+    });
+    const globe = new THREE.Mesh(sphereGeometry, sphereMaterial);
+    scene.add(globe);
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+
+    function loadImageTexture(url) {
+      return new Promise((resolve, reject) => {
+        new THREE.TextureLoader().load(
+          url,
+          (texture) => {
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            resolve(texture);
+          },
+          undefined,
+          reject
+        );
+      });
     }
 
-    function updateHUD() {
-      yearLabel.textContent = String(currentYear);
-      layerLabel.textContent = activeLayer === "intensity" ? "Intensywność pola" : "Deklinacja";
-      statusText.textContent = playing ? "odtwarzanie" : "gotowe";
-      playBtn.textContent = playing ? "⏸ Pause" : "▶ Play";
+    async function fetchJSON(url) {
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`Cannot load ${url}`);
+      return response.json();
     }
 
-    function applyFrame(year) {
-      const idx = years.indexOf(year);
-      if (idx < 0) return;
-      const col = idx % columns;
-      const row = Math.floor(idx / columns);
-
-      activeTexture.repeat.set(1 / columns, 1 / rows);
-      activeTexture.offset.set(col / columns, 1 - (row + 1) / rows);
-      activeTexture.needsUpdate = true;
-
-      currentYear = year;
-      yearSlider.value = String(year);
-      updateHUD();
+    function formatYear(idx) {
+      return String(state.years[idx] ?? '—');
     }
 
-    async function loadAtlas(url) {
-      const tex = await new THREE.TextureLoader().loadAsync(url);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.minFilter = THREE.LinearFilter;
-      tex.magFilter = THREE.LinearFilter;
-      tex.generateMipmaps = false;
-      tex.wrapS = THREE.ClampToEdgeWrapping;
-      tex.wrapT = THREE.ClampToEdgeWrapping;
-      tex.flipY = true;
-      return tex;
+    function applyAtlasTexture() {
+      const texture = state.textures[state.layer];
+      if (!texture || !state.metadata) return;
+
+      const cols = state.metadata.atlas?.cols ?? 6;
+      const rows = state.metadata.atlas?.rows ?? 5;
+      const idx = state.currentYearIndex;
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+
+      texture.repeat.set(1 / cols, 1 / rows);
+      texture.offset.set(col / cols, 1 - (row + 1) / rows);
+      texture.needsUpdate = true;
+      sphereMaterial.map = texture;
+      sphereMaterial.needsUpdate = true;
+      yearLabel.textContent = `${formatYear(idx)} · ${state.layer}`;
+      yearValue.textContent = formatYear(idx);
+      yearSlider.value = String(idx);
     }
 
-    function startPlayback() {
-      stopPlayback();
-      playing = true;
-      updateHUD();
-      intervalId = setInterval(() => {
-        const idx = years.indexOf(currentYear);
-        const next = (idx + 1) % years.length;
-        applyFrame(years[next]);
-      }, intervalMs);
-    }
-
-    function stopPlayback() {
-      playing = false;
-      updateHUD();
-      if (intervalId !== null) {
-        clearInterval(intervalId);
-        intervalId = null;
+    function updateLayerButtons() {
+      for (const btn of layerButtons.querySelectorAll('button')) {
+        btn.classList.toggle('active', btn.dataset.layer === state.layer);
       }
     }
 
-    function togglePlayback() {
-      if (playing) stopPlayback();
-      else startPlayback();
+    function setYearIndex(idx) {
+      const clamped = Math.max(0, Math.min(state.years.length - 1, idx));
+      state.currentYearIndex = clamped;
+      applyAtlasTexture();
+      if (state.lastClicked) {
+        updateClickedReadout(state.lastClicked.lat, state.lastClicked.lon);
+      }
     }
 
-    async function switchLayer(layer) {
-      activeLayer = layer;
-      activeTexture = textures[activeLayer];
-      overlay.material.map = activeTexture;
-      overlay.material.needsUpdate = true;
-      applyFrame(currentYear);
-      updateHUD();
+    function setLayer(layer) {
+      state.layer = layer;
+      updateLayerButtons();
+      applyAtlasTexture();
+      if (state.lastClicked) {
+        updateClickedReadout(state.lastClicked.lat, state.lastClicked.lon);
+      }
     }
 
-    playBtn.addEventListener("click", togglePlayback);
+    function bilinearSample(layerName, yearIndex, lon, lat) {
+      const fd = state.fieldData;
+      const layer = fd.layers[layerName];
+      const lonArr = fd.grid.lon;
+      const latArr = fd.grid.lat;
+      const values = layer.values[yearIndex];
+      const nx = lonArr.length;
+      const ny = latArr.length;
+      const dLon = lonArr[1] - lonArr[0];
+      const dLat = latArr[1] - latArr[0];
 
-    yearSlider.addEventListener("input", () => {
-      stopPlayback();
-      applyFrame(Number(yearSlider.value));
+      let x = lon;
+      while (x < lonArr[0]) x += 360;
+      while (x > lonArr[nx - 1]) x -= 360;
+
+      const fx = (x - lonArr[0]) / dLon;
+      const fy = (lat - latArr[0]) / dLat;
+      const x0 = Math.max(0, Math.min(nx - 2, Math.floor(fx)));
+      const y0 = Math.max(0, Math.min(ny - 2, Math.floor(fy)));
+      const tx = fx - x0;
+      const ty = fy - y0;
+
+      const idx = (iy, ix) => iy * nx + ix;
+      const v00 = values[idx(y0, x0)];
+      const v10 = values[idx(y0, x0 + 1)];
+      const v01 = values[idx(y0 + 1, x0)];
+      const v11 = values[idx(y0 + 1, x0 + 1)];
+
+      return (
+        v00 * (1 - tx) * (1 - ty) +
+        v10 * tx * (1 - ty) +
+        v01 * (1 - tx) * ty +
+        v11 * tx * ty
+      );
+    }
+
+    function updateClickedReadout(lat, lon) {
+      if (lat === null || lon === null || !state.fieldData) {
+        pointValue.textContent = 'Click the globe';
+        coordValue.textContent = '—';
+        intensityValue.textContent = '—';
+        declinationValue.textContent = '—';
+        return;
+      }
+
+      const yearIdx = state.currentYearIndex;
+      const year = state.years[yearIdx];
+      const intensity = bilinearSample('intensity', yearIdx, lon, lat);
+      const declination = bilinearSample('declination', yearIdx, lon, lat);
+
+      pointValue.textContent = `${state.layer} at ${year}`;
+      coordValue.textContent = `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
+      intensityValue.textContent = `${intensity.toFixed(1)} nT`;
+      declinationValue.textContent = `${declination.toFixed(1)}°`;
+    }
+
+    function latLonFromIntersection(point) {
+      const p = point.clone().normalize();
+      const lat = THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(p.y, -1, 1)));
+      let lon = THREE.MathUtils.radToDeg(Math.atan2(p.z, p.x));
+      if (lon > 180) lon -= 360;
+      if (lon < -180) lon += 360;
+      return { lat, lon };
+    }
+
+    function onPointer(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObject(globe, false)[0];
+      if (!hit) return;
+      const { lat, lon } = latLonFromIntersection(hit.point);
+      state.lastClicked = { lat, lon };
+      updateClickedReadout(lat, lon);
+    }
+
+    async function loadData() {
+      const [metadata, fieldData] = await Promise.all([
+        fetchJSON('metadata.json'),
+        fetchJSON('field_data.json'),
+      ]);
+
+      state.metadata = metadata;
+      state.fieldData = fieldData;
+      state.grid = fieldData.grid;
+      state.years = metadata.years ?? fieldData.years ?? [];
+      yearSlider.max = String(Math.max(0, state.years.length - 1));
+      yearSlider.value = '0';
+
+      const [intensity, declination] = await Promise.all([
+        loadImageTexture('atlas_intensity.webp'),
+        loadImageTexture('atlas_declination.webp'),
+      ]);
+
+      state.textures.intensity = intensity;
+      state.textures.declination = declination;
+
+      applyAtlasTexture();
+      updateClickedReadout(null, null);
+      loading.style.display = 'none';
+      state.ready = true;
+    }
+
+    playBtn.addEventListener('click', () => {
+      state.playing = !state.playing;
+      state.lastStepAt = 0;
+      playBtn.textContent = state.playing ? 'Pause' : 'Play';
     });
 
-    speedSlider.addEventListener("input", () => {
-      intervalMs = Number(speedSlider.value);
-      updateSpeedLabel();
-      if (playing) startPlayback();
+    rotBtn.addEventListener('click', () => {
+      state.autoRotate = !state.autoRotate;
+      controls.autoRotate = state.autoRotate;
+      rotBtn.textContent = `Auto-rotate: ${state.autoRotate ? 'on' : 'off'}`;
     });
 
-    layerSelect.addEventListener("change", async () => {
-      stopPlayback();
-      await switchLayer(layerSelect.value);
+    resetBtn.addEventListener('click', () => {
+      controls.reset();
+      camera.position.set(0, 0, 3.25);
+      controls.update();
     });
 
-    renderer.domElement.addEventListener("pointerdown", (e) => {
-      dragging = true;
-      lastX = e.clientX;
-      lastY = e.clientY;
-      stopPlayback();
+    yearSlider.addEventListener('input', (e) => {
+      setYearIndex(Number(e.target.value));
     });
 
-    window.addEventListener("pointerup", () => {
-      dragging = false;
+    layerButtons.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-layer]');
+      if (!btn) return;
+      setLayer(btn.dataset.layer);
     });
 
-    window.addEventListener("pointermove", (e) => {
-      if (!dragging) return;
-      const dx = e.clientX - lastX;
-      const dy = e.clientY - lastY;
-      lastX = e.clientX;
-      lastY = e.clientY;
-      targetRotY += dx * 0.004;
-      targetRotX += dy * 0.004;
-      targetRotX = Math.max(-1.15, Math.min(1.15, targetRotX));
-    });
+    renderer.domElement.addEventListener('pointerdown', onPointer);
 
-    window.addEventListener("wheel", (e) => {
-      camera.position.z += e.deltaY * 0.0015;
-      camera.position.z = Math.max(2.3, Math.min(6.5, camera.position.z));
-    }, { passive: true });
-
-    window.addEventListener("resize", () => {
-      camera.aspect = innerWidth / innerHeight;
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(innerWidth, innerHeight);
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     });
 
-    function animate() {
-      requestAnimationFrame(animate);
-      if (!dragging) targetRotY += 0.0012;
-      rotX += (targetRotX - rotX) * 0.05;
-      rotY += (targetRotY - rotY) * 0.05;
-      globe.rotation.x = rotX;
-      globe.rotation.y = rotY;
-      overlay.rotation.x = rotX;
-      overlay.rotation.y = rotY;
-      stars.rotation.y += 0.00008;
+    function tick() {
+      requestAnimationFrame(tick);
+      controls.update();
+
+      if (state.playing && state.ready && state.years.length > 0) {
+        const now = performance.now();
+        if (!state.lastStepAt) state.lastStepAt = now;
+        if (now - state.lastStepAt >= 350) {
+          const next = (state.currentYearIndex + 1) % state.years.length;
+          setYearIndex(next);
+          state.lastStepAt = now;
+        }
+      }
+
       renderer.render(scene, camera);
     }
 
-    function init() {
-      updateSpeedLabel();
-      applyFrame(currentYear);
-      updateHUD();
-      animate();
-    }
+    loadData().catch((err) => {
+      console.error(err);
+      loading.innerHTML = `Could not load atlas files.<small>${err.message}</small>`;
+    });
 
-    init();
+    tick();
   </script>
 </body>
 </html>
