@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Magnetic Globe 3D</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 40%, #14213d 0%, #070b14 55%, #02040a 100%);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      color: #eef5ff;
+    }
+    #app { position: fixed; inset: 0; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .hud {
+      position: absolute;
+      left: 16px;
+      top: 16px;
+      z-index: 10;
+      width: min(420px, calc(100vw - 32px));
+      padding: 14px 14px 12px;
+      border-radius: 18px;
+      background: rgba(9, 14, 26, 0.78);
+      border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+    }
+    .title { font-size: 20px; font-weight: 700; margin-bottom: 6px; line-height: 1.15; }
+    .subtitle { font-size: 13px; color: #b7c0d4; line-height: 1.45; margin-bottom: 12px; }
+    .controls { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 10px; }
+    .row { display: grid; gap: 8px; margin-bottom: 10px; }
+    button, select, input[type="range"] { font: inherit; }
+    button, select {
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.07);
+      color: #eef5ff;
+      border-radius: 12px;
+      padding: 10px 12px;
+      outline: none;
+    }
+    button:hover, select:hover { background: rgba(255,255,255,0.11); }
+    input[type="range"] { width: 100%; accent-color: #7cc4ff; }
+    .sliderHead {
+      display: flex; justify-content: space-between; align-items: baseline;
+      font-size: 13px; color: #b7c0d4; margin-bottom: 4px;
+    }
+    .meta {
+      font-size: 13px; color: #b7c0d4; line-height: 1.45; display: grid; gap: 4px;
+    }
+    .legend { margin-top: 10px; display: grid; gap: 6px; font-size: 12px; color: #b7c0d4; }
+    .bar {
+      height: 10px; border-radius: 999px;
+      background: linear-gradient(90deg, #40196d 0%, #7c4fd6 22%, #3d78d8 45%, #79d8c4 65%, #fff0a6 82%, #fff9e9 100%);
+      border: 1px solid rgba(255,255,255,0.14);
+    }
+    .hint {
+      position: absolute;
+      right: 16px;
+      bottom: 16px;
+      z-index: 10;
+      max-width: min(430px, calc(100vw - 32px));
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(7, 12, 22, 0.55);
+      border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(8px);
+      color: #b7c0d4;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .statusDot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4fe38b;
+      box-shadow: 0 0 10px rgba(79,227,139,0.6);
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    code { background: rgba(255,255,255,0.08); padding: 0 5px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div class="hud">
+    <div class="title">Magnetic Globe 3D</div>
+    <div class="subtitle">Atlasowa wizualizacja pola magnetycznego Ziemi. Obracaj globus, zmieniaj rok i przełączaj warstwy bez przeładowywania obrazów.</div>
+
+    <div class="controls">
+      <button id="playBtn">▶ Play</button>
+      <select id="layerSelect" title="Warstwa">
+        <option value="intensity">Intensywność pola</option>
+        <option value="declination">Deklinacja</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="sliderHead">
+          <span>Rok</span>
+          <span id="yearLabel">1900</span>
+        </div>
+        <input id="yearSlider" type="range" min="1900" max="2025" step="5" value="1900" />
+      </div>
+
+      <div>
+        <div class="sliderHead">
+          <span>Prędkość</span>
+          <span id="speedLabel">0.3 s / klatkę</span>
+        </div>
+        <input id="speedSlider" type="range" min="150" max="1000" step="50" value="300" />
+      </div>
+
+      <div class="meta">
+        <div>Warstwa: <strong id="layerLabel">Intensywność pola</strong></div>
+        <div>Stan: <span class="statusDot"></span><span id="statusText">gotowe</span></div>
+        <div>Atlas: <code>atlas_intensity.webp</code> / <code>atlas_declination.webp</code></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div>Fiolet = słabsze pole, jasny krem = silniejsze pole.</div>
+      <div class="bar"></div>
+    </div>
+  </div>
+
+  <div class="hint">
+    Przeciągnij myszą lub palcem, aby obracać globus. Użyj suwaka roku do skoku między klatkami. Przyciskiem Play uruchamiasz animację.
+  </div>
+
+  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+
+    const app = document.getElementById("app");
+    const yearSlider = document.getElementById("yearSlider");
+    const speedSlider = document.getElementById("speedSlider");
+    const speedLabel = document.getElementById("speedLabel");
+    const yearLabel = document.getElementById("yearLabel");
+    const playBtn = document.getElementById("playBtn");
+    const layerSelect = document.getElementById("layerSelect");
+    const layerLabel = document.getElementById("layerLabel");
+    const statusText = document.getElementById("statusText");
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
+    camera.position.z = 3.3;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    app.appendChild(renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 1.7));
+    const dir = new THREE.DirectionalLight(0xffffff, 2.2);
+    dir.position.set(3, 2, 4);
+    scene.add(dir);
+
+    const globe = new THREE.Mesh(
+      new THREE.SphereGeometry(1.35, 128, 128),
+      new THREE.MeshPhongMaterial({ color: 0x17304f, shininess: 20, specular: 0x344c6a })
+    );
+    scene.add(globe);
+
+    const overlay = new THREE.Mesh(
+      new THREE.SphereGeometry(1.353, 128, 128),
+      new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false })
+    );
+    scene.add(overlay);
+
+    const stars = makeStars();
+    scene.add(stars);
+
+    function makeStars() {
+      const count = 1300;
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        const radius = 40 + Math.random() * 60;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+        positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+        positions[i * 3 + 2] = radius * Math.cos(phi);
+      }
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      return new THREE.Points(geometry, new THREE.PointsMaterial({ color: 0xffffff, size: 0.06, sizeAttenuation: true }));
+    }
+
+    const metadata = await (await fetch("metadata.json")).json();
+    const years = metadata.years;
+    const columns = metadata.columns;
+    const rows = metadata.rows;
+
+    const textures = {
+      intensity: await loadAtlas("atlas_intensity.webp"),
+      declination: await loadAtlas("atlas_declination.webp")
+    };
+
+    let activeLayer = "intensity";
+    let activeTexture = textures[activeLayer];
+    overlay.material.map = activeTexture;
+    overlay.material.needsUpdate = true;
+
+    let currentYear = years[0];
+    let playing = false;
+    let intervalId = null;
+    let intervalMs = Number(speedSlider.value);
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    let rotX = 0;
+    let rotY = 0;
+    let targetRotX = 0;
+    let targetRotY = 0;
+
+    function updateSpeedLabel() {
+      speedLabel.textContent = `${(intervalMs / 1000).toFixed(1)} s / klatkę`;
+    }
+
+    function updateHUD() {
+      yearLabel.textContent = String(currentYear);
+      layerLabel.textContent = activeLayer === "intensity" ? "Intensywność pola" : "Deklinacja";
+      statusText.textContent = playing ? "odtwarzanie" : "gotowe";
+      playBtn.textContent = playing ? "⏸ Pause" : "▶ Play";
+    }
+
+    function applyFrame(year) {
+      const idx = years.indexOf(year);
+      if (idx < 0) return;
+      const col = idx % columns;
+      const row = Math.floor(idx / columns);
+
+      activeTexture.repeat.set(1 / columns, 1 / rows);
+      activeTexture.offset.set(col / columns, 1 - (row + 1) / rows);
+      activeTexture.needsUpdate = true;
+
+      currentYear = year;
+      yearSlider.value = String(year);
+      updateHUD();
+    }
+
+    async function loadAtlas(url) {
+      const tex = await new THREE.TextureLoader().loadAsync(url);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      tex.wrapS = THREE.ClampToEdgeWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.flipY = true;
+      return tex;
+    }
+
+    function startPlayback() {
+      stopPlayback();
+      playing = true;
+      updateHUD();
+      intervalId = setInterval(() => {
+        const idx = years.indexOf(currentYear);
+        const next = (idx + 1) % years.length;
+        applyFrame(years[next]);
+      }, intervalMs);
+    }
+
+    function stopPlayback() {
+      playing = false;
+      updateHUD();
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    }
+
+    function togglePlayback() {
+      if (playing) stopPlayback();
+      else startPlayback();
+    }
+
+    async function switchLayer(layer) {
+      activeLayer = layer;
+      activeTexture = textures[activeLayer];
+      overlay.material.map = activeTexture;
+      overlay.material.needsUpdate = true;
+      applyFrame(currentYear);
+      updateHUD();
+    }
+
+    playBtn.addEventListener("click", togglePlayback);
+
+    yearSlider.addEventListener("input", () => {
+      stopPlayback();
+      applyFrame(Number(yearSlider.value));
+    });
+
+    speedSlider.addEventListener("input", () => {
+      intervalMs = Number(speedSlider.value);
+      updateSpeedLabel();
+      if (playing) startPlayback();
+    });
+
+    layerSelect.addEventListener("change", async () => {
+      stopPlayback();
+      await switchLayer(layerSelect.value);
+    });
+
+    renderer.domElement.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      stopPlayback();
+    });
+
+    window.addEventListener("pointerup", () => {
+      dragging = false;
+    });
+
+    window.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      targetRotY += dx * 0.004;
+      targetRotX += dy * 0.004;
+      targetRotX = Math.max(-1.15, Math.min(1.15, targetRotX));
+    });
+
+    window.addEventListener("wheel", (e) => {
+      camera.position.z += e.deltaY * 0.0015;
+      camera.position.z = Math.max(2.3, Math.min(6.5, camera.position.z));
+    }, { passive: true });
+
+    window.addEventListener("resize", () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!dragging) targetRotY += 0.0012;
+      rotX += (targetRotX - rotX) * 0.05;
+      rotY += (targetRotY - rotY) * 0.05;
+      globe.rotation.x = rotX;
+      globe.rotation.y = rotY;
+      overlay.rotation.x = rotX;
+      overlay.rotation.y = rotY;
+      stars.rotation.y += 0.00008;
+      renderer.render(scene, camera);
+    }
+
+    function init() {
+      updateSpeedLabel();
+      applyFrame(currentYear);
+      updateHUD();
+      animate();
+    }
+
+    init();
+  </script>
+</body>
+</html>
