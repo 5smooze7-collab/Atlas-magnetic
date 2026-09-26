@@ -1,4 +1,5 @@
 <!doctype html>
+
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -169,7 +170,11 @@
       font-size: 15px;
       letter-spacing: 0.2px;
     }
-    .loading small { color: var(--muted); display: block; margin-top: 6px; }
+    .loading small {
+      color: var(--muted);
+      display: block;
+      margin-top: 6px;
+    }
     @media (max-width: 720px) {
       .ui, .hint {
         left: 10px;
@@ -199,51 +204,54 @@
       <div class="sub" id="yearLabel">—</div>
     </div>
 
-    <div class="buttons">
-      <button id="playBtn">Play</button>
-      <button id="resetBtn">Reset view</button>
-      <button id="rotBtn">Auto-rotate: on</button>
+```
+<div class="buttons">
+  <button id="playBtn">Play</button>
+  <button id="resetBtn">Reset view</button>
+  <button id="rotBtn">Auto-rotate: on</button>
+</div>
+
+<div class="row">
+  <div class="buttons" id="layerButtons">
+    <button class="chip active" data-layer="intensity">Intensity</button>
+    <button class="chip" data-layer="declination">Declination</button>
+  </div>
+
+  <div class="slider-wrap">
+    <div class="slider-top">
+      <span>Year</span>
+      <span id="yearValue">1900</span>
     </div>
+    <input id="yearSlider" type="range" min="0" max="0" step="1" value="0" />
+  </div>
 
-    <div class="row">
-      <div class="buttons" id="layerButtons">
-        <button class="chip active" data-layer="intensity">Intensity</button>
-        <button class="chip" data-layer="declination">Declination</button>
-      </div>
-
-      <div class="slider-wrap">
-        <div class="slider-top">
-          <span>Year</span>
-          <span id="yearValue">1900</span>
-        </div>
-        <input id="yearSlider" type="range" min="0" max="0" step="1" value="0" />
-      </div>
-
-      <div class="stats">
-        <div class="card">
-          <div class="k">Clicked point</div>
-          <div class="v" id="pointValue">Click the globe</div>
-        </div>
-        <div class="card">
-          <div class="k">Coordinates</div>
-          <div class="v" id="coordValue">—</div>
-        </div>
-        <div class="card">
-          <div class="k">Intensity F</div>
-          <div class="v" id="intensityValue">—</div>
-        </div>
-        <div class="card">
-          <div class="k">Declination D</div>
-          <div class="v" id="declinationValue">—</div>
-        </div>
-      </div>
-
-      <div class="legend">
-        <span class="badge">Drag to rotate</span>
-        <span class="badge">Scroll to zoom</span>
-        <span class="badge">Click a point for values</span>
-      </div>
+  <div class="stats">
+    <div class="card">
+      <div class="k">Clicked point</div>
+      <div class="v" id="pointValue">Click the globe</div>
     </div>
+    <div class="card">
+      <div class="k">Coordinates</div>
+      <div class="v" id="coordValue">—</div>
+    </div>
+    <div class="card">
+      <div class="k">Intensity F</div>
+      <div class="v" id="intensityValue">—</div>
+    </div>
+    <div class="card">
+      <div class="k">Declination D</div>
+      <div class="v" id="declinationValue">—</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span class="badge">Drag to rotate</span>
+    <span class="badge">Scroll to zoom</span>
+    <span class="badge">Click a point for values</span>
+  </div>
+</div>
+```
+
   </div>
 
   <div class="hint">
@@ -568,5 +576,6 @@
 
     tick();
   </script>
+
 </body>
 </html>
